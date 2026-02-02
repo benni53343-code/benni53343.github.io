@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Schuldenuhr Wachtberg</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; line-height: 1.35; }
+    .wrap { max-width: 880px; margin: 0 auto; }
+    .card { border: 1px solid #e6e6e6; border-radius: 14px; padding: 18px; margin: 14px 0; box-shadow: 0 2px 10px rgba(0,0,0,.03); }
+    .title { font-size: 26px; font-weight: 800; margin: 0 0 8px; }
+    .big { font-size: 46px; font-weight: 900; letter-spacing: .5px; }
+    .muted { color: #666; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+    label { display: block; font-weight: 600; margin: 0 0 6px; }
+    input, button, textarea { font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid #d9d9d9; }
+    input[type="number"] { width: 220px; }
+    textarea { width: 100%; min-height: 70px; resize: vertical; }
+    button { cursor: pointer; font-weight: 700; }
+    button.primary { border-color: #000; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+    th { font-size: 13px; color: #444; }
+    .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid #ddd; font-size: 12px; color: #444; }
+    .danger { color: #b00020; }
+    .ok { color: #0b6b2f; }
+    .small { font-size: 13px; }
+    .right { text-align: right; }
+
+    .note{
+      margin-top: 6px;
+      font-size: 12px;
+      line-height: 1.35;
+      opacity: 0.85;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="title">Schuldenuhr Wachtberg</div>
+      <div class="muted small">
+        Startbetrag = aktueller Stand (HFA, 30.09.2025) • Zuwachsrate = konservativ aus langfristigem Trend seit 31.12.2015 abgeleitet • Updates lokal im Browser
+      </div>
+      <div id="sourceNote" class="note"></div>
+
+      <div style="margin-top:14px" class="big" id="debtDisplay">—</div>
+      <div class="muted" id="metaLine" style="margin-top:6px">—</div>
+      <div class="muted small" id="sinceLine" style="margin-top:6px">—</div>
+    </div>
+
+    <div class="card">
+      <div class="title" style="font-size:18px">Admin / Einstellungen</div>
+
+      <div class="row">
+        <div>
+          <label for="startDebt">Startbetrag (Euro)</label>
+          <input id="startDebt" type="number" step="0.01" />
+        </div>
+        <div>
+          <label for="rate">Zuwachsrate (Euro pro Sekunde)</label>
+          <input id="rate" type="number" step="0.000001" />
+        </div>
+        <div>
+          <label for="population">Einwohner (optional)</label>
+          <input id="population" type="number" step="1" />
+        </div>
+        <div>
+          <button class="primary" id="saveSettings">Speichern</button>
+        </div>
+        <div>
+          <button id="resetAll" title="Setzt alles zurück (inkl. Log)">Reset</button>
+        </div>
+      </div>
+
+      <div class="muted small" style="margin-top:10px">
+        Tipp: Wenn du die Uhr auf „jetzt“ neu basieren willst, ändere den Startbetrag und speichere – der Startzeitpunkt wird dann automatisch auf den aktuellen Zeitpunkt gesetzt.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="title" style="font-size:18px">Sonderschulden eintragen</div>
+
+      <div class="row">
+        <div>
+          <label for="adjAmount">Betrag (+ / −) in Euro</label>
+          <input id="adjAmount" type="number" step="0.01" placeholder="z.B. 250000 oder -100000" />
+        </div>
+        <div style="flex:1; min-width:260px">
+          <label for="adjNote">Notiz (optional)</label>
+          <input id="adjNote" type="text" placeholder="z.B. Nachtrag Kreditermächtigung / Sondertilgung / Investition XYZ" style="width:100%" />
+        </div>
+        <div>
+          <button class="primary" id="addAdj">Eintragen</button>
+        </div>
+      </div>
+
+      <div class="muted small" style="margin-top:10px">
+        Eintrag wirkt sofort auf den aktuellen Stand und wird im Log gespeichert (localStorage).
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between; align-items:center">
+        <div class="title" style="font-size:18px; margin:0">Änderungslog</div>
+        <div class="row" style="margin:0">
+          <button id="exportLog">Log exportieren (JSON)</button>
+          <button id="clearLog">Log leeren</button>
+        </div>
+      </div>
+
+      <div style="margin-top:10px; overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:170px">Zeit</th>
+              <th style="width:120px" class="right">Betrag</th>
+              <th>Notiz</th>
+            </tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const STORAGE_KEY = "wachtberg_debt_clock_v1";
+
+  // ---- Defaultwerte ----
+  const DEFAULTS = {
+    // ✅ Aktueller offizieller Stand (HFA Quartalsbericht, 30.09.2025): 76.622 Tsd. EUR
+    startDebt: 76622000,  // 76,622 Mio. €
+
+    // ✅ Konservativ hergeleitete Langfrist-Rate (31.12.2015 → 30.09.2025)
+    // 31.12.2015: 21,178 Mio. €  |  30.09.2025: 76,622 Mio. €
+    // Zuwachs: 55.444.000 €  ⇒  Ø 0,18020583 €/Sek.
+    ratePerSecond: 0.18020583,
+
+    // Start der Fortschreibung (ab „jetzt“)
+    startTimestampMs: Date.now(),
+
+    // optional: Einwohnerzahl für Pro-Kopf-Anzeige
+    population: 20000,
+
+    // Öffentlich sichtbarer Quellen-/Methodenhinweis
+    sourceNote:
+      "Datenbasis: HFA-Quartalsübersicht (Stand 30.09.2025: 76,622 Mio. €). " +
+      "Zuwachsrate konservativ aus langfristigem Trend 31.12.2015 (21,178 Mio. €) → 30.09.2025 (76,622 Mio. €) abgeleitet.",
+
+    // Interne Dokumentation (nicht erforderlich für Anzeige)
+    legacy: {
+      previousStartDebt: 61558000,
+      previousRatePerSecond: 0.21,
+      note: "Vorherige Test-Parametrisierung (ältere Datenbasis)."
+    },
+
+    // Sonderschulden-Log
+    adjustments: [] // {ts, amount, note}
+  };
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return structuredClone(DEFAULTS);
+      const parsed = JSON.parse(raw);
+
+      return {
+        ...structuredClone(DEFAULTS),
+        ...parsed,
+        adjustments: Array.isArray(parsed.adjustments) ? parsed.adjustments : []
+      };
+    } catch {
+      return structuredClone(DEFAULTS);
+    }
+  }
+
+  function saveState(state) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function eur(n) {
+    return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n);
+  }
+
+  function dt(ts) {
+    const d = new Date(ts);
+    return d.toLocaleString("de-DE");
+  }
+
+  function sumAdjustments(adjs) {
+    return adjs.reduce((acc, x) => acc + (Number(x.amount) || 0), 0);
+  }
+
+  function computeCurrentDebt(state, nowMs) {
+    const elapsedSec = (nowMs - state.startTimestampMs) / 1000;
+    const base = Number(state.startDebt) + elapsedSec * Number(state.ratePerSecond);
+    const adj = sumAdjustments(state.adjustments);
+    return base + adj;
+  }
+
+  // ---- DOM refs ----
+  const debtDisplay = document.getElementById("debtDisplay");
+  const metaLine = document.getElementById("metaLine");
+  const sinceLine = document.getElementById("sinceLine");
+
+  const startDebtInput = document.getElementById("startDebt");
+  const rateInput = document.getElementById("rate");
+  const popInput = document.getElementById("population");
+
+  const saveBtn = document.getElementById("saveSettings");
+  const resetBtn = document.getElementById("resetAll");
+
+  const adjAmount = document.getElementById("adjAmount");
+  const adjNote = document.getElementById("adjNote");
+  const addAdjBtn = document.getElementById("addAdj");
+
+  const logBody = document.getElementById("logBody");
+  const clearLogBtn = document.getElementById("clearLog");
+  const exportLogBtn = document.getElementById("exportLog");
+
+  // ---- State ----
+  let state = loadState();
+
+  function renderSettings() {
+    startDebtInput.value = state.startDebt;
+    rateInput.value = state.ratePerSecond;
+    popInput.value = state.population ?? "";
+  }
+
+  function renderLog() {
+    const rows = state.adjustments
+      .slice()
+      .sort((a,b) => b.ts - a.ts)
+      .map(x => {
+        const amt = Number(x.amount) || 0;
+        const cls = amt >= 0 ? "danger" : "ok";
+        const sign = amt >= 0 ? "+" : "−";
+        return `
+          <tr>
+            <td class="small">${dt(x.ts)}</td>
+            <td class="right ${cls}"><strong>${sign} ${eur(Math.abs(amt))}</strong></td>
+            <td class="small">${(x.note || "").replaceAll("<","&lt;").replaceAll(">","&gt;")}</td>
+          </tr>
+        `;
+      }).join("");
+
+    logBody.innerHTML = rows || `<tr><td colspan="3" class="muted small">Noch keine Einträge.</td></tr>`;
+  }
+
+  function renderSourceNote() {
+    const el = document.getElementById("sourceNote");
+    if (!el) return;
+    el.textContent = state.sourceNote || "";
+  }
+
+  function tick() {
+    const now = Date.now();
+    const current = computeCurrentDebt(state, now);
+    debtDisplay.textContent = eur(current);
+
+    const perSec = Number(state.ratePerSecond) || 0;
+    const perDay = perSec * 86400;
+    const perMonth = perDay * 30; // grob
+    const adj = sumAdjustments(state.adjustments);
+
+    let perCapita = null;
+    const pop = Number(state.population);
+    if (pop && pop > 0) perCapita = current / pop;
+
+    metaLine.innerHTML = `
+      <span class="pill">Rate: ${eur(perSec)}/Sek.</span>
+      &nbsp; <span class="pill">≈ ${eur(perDay)}/Tag</span>
+      &nbsp; <span class="pill">≈ ${eur(perMonth)}/Monat</span>
+      &nbsp; <span class="pill">Sonderschulden gesamt: ${eur(adj)}</span>
+      ${perCapita ? `&nbsp; <span class="pill">≈ ${eur(perCapita)} pro Kopf</span>` : ""}
+    `;
+
+    const since = new Date(state.startTimestampMs);
+    sinceLine.textContent = `Fortschreibung seit: ${since.toLocaleString("de-DE")} (Startbetrag: ${eur(Number(state.startDebt) || 0)})`;
+  }
+
+  // ---- Events ----
+  saveBtn.addEventListener("click", () => {
+    const newStart = Number(startDebtInput.value);
+    const newRate = Number(rateInput.value);
+    const newPop = popInput.value === "" ? null : Number(popInput.value);
+
+    if (!Number.isFinite(newStart) || newStart < 0) { alert("Bitte einen gültigen Startbetrag eingeben."); return; }
+    if (!Number.isFinite(newRate) || newRate < 0) { alert("Bitte eine gültige Rate (>= 0) eingeben."); return; }
+
+    // Setze Startzeitpunkt auf "jetzt", wenn Startbetrag / Rate geändert wird,
+    // damit die Uhr sauber ab diesem Moment fortschreibt.
+    const changed = (newStart !== Number(state.startDebt)) || (newRate !== Number(state.ratePerSecond));
+
+    state.startDebt = newStart;
+    state.ratePerSecond = newRate;
+    state.population = (newPop && newPop > 0) ? newPop : null;
+    if (changed) state.startTimestampMs = Date.now();
+
+    saveState(state);
+    renderSettings();
+    renderSourceNote();
+    tick();
+  });
+
+  addAdjBtn.addEventListener("click", () => {
+    const amt = Number(adjAmount.value);
+    if (!Number.isFinite(amt) || amt === 0) { alert("Bitte einen gültigen Betrag (ungleich 0) eingeben."); return; }
+
+    state.adjustments.push({
+      ts: Date.now(),
+      amount: amt,
+      note: (adjNote.value || "").trim()
+    });
+
+    saveState(state);
+    adjAmount.value = "";
+    adjNote.value = "";
+    renderLog();
+    tick();
+  });
+
+  clearLogBtn.addEventListener("click", () => {
+    if (!confirm("Log wirklich leeren?")) return;
+    state.adjustments = [];
+    saveState(state);
+    renderLog();
+    tick();
+  });
+
+  exportLogBtn.addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(state.adjustments, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "wachtberg-schuldenuhr-log.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  resetBtn.addEventListener("click", () => {
+    if (!confirm("Alles zurücksetzen (inkl. Log, Startwert, Rate)?")) return;
+    state = structuredClone(DEFAULTS);
+    state.startTimestampMs = Date.now();
+    saveState(state);
+    renderSettings();
+    renderLog();
+    renderSourceNote();
+    tick();
+  });
+
+  // ---- Init ----
+  renderSettings();
+  renderLog();
+  renderSourceNote();
+  tick();
+  setInterval(tick, 250); // 4x pro Sekunde aktualisieren
+})();
+</script>
+</body>
+</html>
+
