@@ -209,12 +209,12 @@
       </div>
 
       <div class="split">
-        <div class="mini">Investitionskredite laut letzter Meldung<strong>57,709 Mio. €</strong></div>
-        <div class="mini">Liquiditätskredite laut letzter Meldung<strong>23,751 Mio. €</strong></div>
+        <div class="mini">Investitionskredite laut letzter Meldung<strong>57,185 Mio. €</strong></div>
+        <div class="mini">Liquiditätskredite laut letzter Meldung<strong>20,855 Mio. €</strong></div>
       </div>
 
       <div class="note" id="noteLine">
-        Berechnung: Letzter Ist-Wert (07.05.2026) = 81,460 Mio. € Gesamtschulden. Der Sekundenwert ergibt sich aus der durchschnittlichen Entwicklung der letzten 10 Jahre seit 31.12.2015 und beträgt rund 0,185 € pro Sekunde. Quelle der Ist-Daten: regelmäßige öffentliche Berichte der Gemeinde Wachtberg (Haupt- und Finanzausschuss).
+        Berechnung: Letzter Ist-Wert (30.06.2026) = 78,040 Mio. € Gesamtschulden. Der Sekundenwert ergibt sich aus der durchschnittlichen Entwicklung der letzten 10 Jahre seit 31.12.2015 und beträgt rund 0,172 € pro Sekunde. Quelle der Ist-Daten: regelmäßige öffentliche Berichte der Gemeinde Wachtberg (Haupt- und Finanzausschuss).
       </div>
     </div>
   </section>
@@ -223,15 +223,15 @@
     // Öffentliche Schuldenuhr Wachtberg — reduzierte Anzeige ohne Adminbereich.
     // Datenbasis: zuletzt gelieferte Gemeindedaten / HFA-Quartalsübersicht.
 
-    const START_DEBT = 81460000; // 81,460 Mio. € Gesamtschulden
-    const START_INVESTMENT_DEBT = 57709000; // 57,709 Mio. € Investitionskredite
-    const START_LIQUIDITY_DEBT = 23751000; // 23,751 Mio. € Liquiditätskredite
+    const START_DEBT = 78040000; // 78,040 Mio. € Gesamtschulden
+    const START_INVESTMENT_DEBT = 57185000; // 57,185 Mio. € Investitionskredite
+    const START_LIQUIDITY_DEBT = 20855000; // 20,855 Mio. € Liquiditätskredite
 
     const HISTORIC_START_DEBT = 21178000; // 31.12.2015: 21,178 Mio. €
 
     // Referenzpunkt der aktuellen Gemeindedaten.
     // Zeitzone explizit gesetzt, damit die Berechnung stabil bleibt.
-    const REFERENCE_TS = Date.parse("2026-05-07T00:00:00+02:00");
+    const REFERENCE_TS = Date.parse("2026-06-30T00:00:00+02:00");
     const HISTORIC_TS = Date.parse("2015-12-31T00:00:00+01:00");
 
     // Exakt aus den beiden Referenzpunkten hergeleitet.
